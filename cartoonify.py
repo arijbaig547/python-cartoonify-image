@@ -164,37 +164,47 @@ def show_progress():
 
 # ---------------- IMAGE PROCESS ----------------
 def anime_transform(image: Image.Image):
-    transform = T.Compose([
-        T.Resize(512),
-        T.Pad(
-            padding=lambda img: (
-                (512 - img.size[0]) // 2,
-                (512 - img.size[1]) // 2,
-                (512 - img.size[0] + 1) // 2,
-                (512 - img.size[1] + 1) // 2,
-            ),
-            fill=0
-        ),
-        T.ToTensor(),
-        T.Normalize([0.5]*3, [0.5]*3)
-    ])
-    
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = load_model()
     if model is None:
         return None
-    
-    model = model.to(device)
+
+    # --- Resize longest side to 512 (SAFE) ---
+    w, h = image.size
+    scale = 512 / max(w, h)
+    new_w, new_h = int(w * scale), int(h * scale)
+    image = image.resize((new_w, new_h), Image.BICUBIC)
+
+    # --- Padding calculation (guaranteed non-negative) ---
+    pad_left = (512 - new_w) // 2
+    pad_top = (512 - new_h) // 2
+    pad_right = 512 - new_w - pad_left
+    pad_bottom = 512 - new_h - pad_top
+
+    image = T.Pad(
+        padding=(pad_left, pad_top, pad_right, pad_bottom),
+        fill=0
+    )(image)
+
+    transform = T.Compose([
+        T.ToTensor(),
+        T.Normalize([0.5]*3, [0.5]*3)
+    ])
+
     input_tensor = transform(image).unsqueeze(0).to(device)
-    
+    model = model.to(device)
+
     with torch.no_grad():
         output = model(input_tensor)
-    
+
     output = output.squeeze(0).cpu()
     output = output * 0.5 + 0.5
     output = output.clamp(0, 1)
-    
+
     return T.ToPILImage()(output)
+
+    
+   
 
 # ---------------- HEADER ----------------
 st.markdown('<h1 class="main-title">🎨 AI Anime Generator</h1>', unsafe_allow_html=True)
