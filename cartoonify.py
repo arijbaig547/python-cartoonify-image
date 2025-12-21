@@ -166,9 +166,17 @@ def show_progress():
 def anime_transform(image: Image.Image):
     transform = T.Compose([
         T.Resize(512),
-        T.CenterCrop(512),
+        T.Pad(
+            padding=lambda img: (
+                (512 - img.size[0]) // 2,
+                (512 - img.size[1]) // 2,
+                (512 - img.size[0] + 1) // 2,
+                (512 - img.size[1] + 1) // 2,
+            ),
+            fill=0
+        ),
         T.ToTensor(),
-        T.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        T.Normalize([0.5]*3, [0.5]*3)
     ])
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
